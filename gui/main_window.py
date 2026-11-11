@@ -7,10 +7,60 @@ from config.settings import APP_TITLE, WINDOW_HEIGHT, WINDOW_WIDTH
 from simulation.simulator import Simulator
 from gui.animation_panel import AnimationPanel
 from gui.comparison_panel import ComparisonPanel
+from gui.results_panel import ResultsPanel
 
 
 class MainWindow:
     """Main application window."""
+
+    PROTOCOL_ORDER = [
+        "One-Bit Sliding Window",
+        "Go-Back-N",
+        "Selective Repeat",
+    ]
+
+    SCENARIOS = {
+        "Ideal Network": {
+            "frames": 20,
+            "window": 4,
+            "transmission": 10,
+            "ack": 5,
+            "packet_loss": 0,
+            "ack_loss": 0,
+            "timeout": 50,
+            "seed": 101,
+        },
+        "Packet Loss": {
+            "frames": 20,
+            "window": 4,
+            "transmission": 10,
+            "ack": 5,
+            "packet_loss": 20,
+            "ack_loss": 0,
+            "timeout": 50,
+            "seed": 202,
+        },
+        "ACK Loss": {
+            "frames": 20,
+            "window": 4,
+            "transmission": 10,
+            "ack": 5,
+            "packet_loss": 0,
+            "ack_loss": 20,
+            "timeout": 50,
+            "seed": 303,
+        },
+        "Combined Loss": {
+            "frames": 20,
+            "window": 4,
+            "transmission": 10,
+            "ack": 5,
+            "packet_loss": 20,
+            "ack_loss": 10,
+            "timeout": 50,
+            "seed": 404,
+        },
+    }
 
     def __init__(self):
         self.root = tk.Tk()
@@ -22,6 +72,10 @@ class MainWindow:
         self.simulator = Simulator()
         self.comparison_window = None
         self.comparison_panel = None
+        self.results_panel = None
+        self.current_comparison_results = {}
+        self.current_comparison_parameters = {}
+        self.current_scenario_name = "Ideal Network"
 
         self.setup_styles()
         self.create_header()
@@ -143,8 +197,24 @@ class MainWindow:
 
         ttk.Label(
             config_frame,
+            text="Scenario:"
+        ).grid(row=0, column=2, sticky="w", padx=5, pady=5)
+
+        self.scenario_var = tk.StringVar(value="Ideal Network")
+        scenario_combo = ttk.Combobox(
+            config_frame,
+            textvariable=self.scenario_var,
+            values=list(self.SCENARIOS.keys()),
+            state="readonly",
+            width=18
+        )
+        scenario_combo.grid(row=0, column=3, padx=8)
+        self.scenario_var.trace_add("write", self._on_scenario_change)
+
+        ttk.Label(
+            config_frame,
             text="Window Size:"
-        ).grid(row=0, column=2, padx=5)
+        ).grid(row=1, column=0, padx=5)
 
         self.window_var = tk.StringVar(value="4")
 
@@ -152,85 +222,87 @@ class MainWindow:
             config_frame,
             textvariable=self.window_var,
             width=10
-        ).grid(row=0, column=3, padx=8)
+        ).grid(row=1, column=1, padx=8)
 
         ttk.Label(
             config_frame,
             text="Number of Frames:"
-        ).grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        ).grid(row=1, column=2, padx=5)
 
-        self.frames_var = tk.StringVar(value="10")
+        self.frames_var = tk.StringVar(value="20")
 
         ttk.Entry(
             config_frame,
             textvariable=self.frames_var,
             width=10
-        ).grid(row=1, column=1, sticky="w", padx=8)
+        ).grid(row=1, column=3, padx=8)
 
         ttk.Label(
             config_frame,
             text="Transmission Delay (ms):"
-        ).grid(row=1, column=2, padx=5)
+        ).grid(row=2, column=0, sticky="w", padx=5, pady=5)
 
-        self.transmission_var = tk.StringVar(value="100")
+        self.transmission_var = tk.StringVar(value="10")
 
         ttk.Entry(
             config_frame,
             textvariable=self.transmission_var,
             width=10
-        ).grid(row=1, column=3, padx=8)
+        ).grid(row=2, column=1, padx=8)
 
         ttk.Label(
             config_frame,
             text="ACK Delay (ms):"
-        ).grid(row=2, column=0, sticky="w", padx=5, pady=5)
+        ).grid(row=2, column=2, padx=5)
 
-        self.ack_var = tk.StringVar(value="50")
+        self.ack_var = tk.StringVar(value="5")
 
         ttk.Entry(
             config_frame,
             textvariable=self.ack_var,
             width=10
-        ).grid(row=2, column=1, padx=8)
+        ).grid(row=2, column=3, padx=8)
 
         ttk.Label(
             config_frame,
             text="Packet Loss (%):"
-        ).grid(row=2, column=2, padx=5)
+        ).grid(row=3, column=0, sticky="w", padx=5, pady=5)
 
-        self.packet_loss_var = tk.StringVar(value="10")
+        self.packet_loss_var = tk.StringVar(value="0")
 
         ttk.Entry(
             config_frame,
             textvariable=self.packet_loss_var,
             width=10
-        ).grid(row=2, column=3, padx=8)
+        ).grid(row=3, column=1, padx=8)
 
         ttk.Label(
             config_frame,
             text="ACK Loss (%):"
-        ).grid(row=3, column=0, sticky="w", padx=5, pady=5)
+        ).grid(row=3, column=2, padx=5)
 
-        self.ack_loss_var = tk.StringVar(value="5")
+        self.ack_loss_var = tk.StringVar(value="0")
 
         ttk.Entry(
             config_frame,
             textvariable=self.ack_loss_var,
             width=10
-        ).grid(row=3, column=1, padx=8)
+        ).grid(row=3, column=3, padx=8)
 
         ttk.Label(
             config_frame,
             text="Timeout (ms):"
-        ).grid(row=3, column=2, padx=5)
+        ).grid(row=4, column=0, sticky="w", padx=5, pady=5)
 
-        self.timeout_var = tk.StringVar(value="300")
+        self.timeout_var = tk.StringVar(value="50")
 
         ttk.Entry(
             config_frame,
             textvariable=self.timeout_var,
             width=10
-        ).grid(row=3, column=3, padx=8)
+        ).grid(row=4, column=1, padx=8)
+
+        self.apply_scenario("Ideal Network")
 
         # BUTTONS
         controls = ttk.Frame(main)
@@ -252,6 +324,12 @@ class MainWindow:
 
         ttk.Button(
             controls,
+            text="View Performance Results",
+            command=self.view_performance_results
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            controls,
             text="↻ Reset",
             command=self.reset_simulation
         ).pack(side="left", padx=5)
@@ -262,7 +340,7 @@ class MainWindow:
             text="Animated Sender-Receiver Communication",
             padding=8
         )
-        animation_frame.pack(fill="x", pady=5)
+        animation_frame.pack(fill="both", expand=True, pady=5)
 
         self.animation_panel = AnimationPanel(animation_frame)
         self.animation_panel.pack(fill="both", expand=True)
@@ -275,46 +353,115 @@ class MainWindow:
         )
         log_frame.pack(fill="both", expand=True, pady=5)
 
-        self.event_log = tk.Text(
-            log_frame,
-            height=6,
-            font=("Consolas", 9),
-            wrap="word",
-            bg="white",
-            fg="#1E293B",
+        log_controls = ttk.Frame(log_frame)
+        log_controls.pack(fill="x", pady=(0, 2))
+
+        self.pause_button = ttk.Button(
+            log_controls,
+            text="Pause",
+            command=self._pause_simulation,
             state="disabled"
         )
-        self.event_log.pack(
-            side="left",
-            fill="both",
-            expand=True
-        )
+        self.pause_button.pack(side="left", padx=(0, 4))
 
-        scrollbar = ttk.Scrollbar(
-            log_frame,
+        self.resume_button = ttk.Button(
+            log_controls,
+            text="Resume",
+            command=self._resume_simulation,
+            state="disabled"
+        )
+        self.resume_button.pack(side="left", padx=4)
+
+        self.step_button = ttk.Button(
+            log_controls,
+            text="Step Forward",
+            command=self._step_simulation,
+            state="disabled"
+        )
+        self.step_button.pack(side="left", padx=4)
+
+        ttk.Button(
+            log_controls,
+            text="Clear Log",
+            command=self._clear_event_log
+        ).pack(side="left", padx=4)
+
+        self.event_count_var = tk.StringVar(value="Events: 0")
+        self.event_status_var = tk.StringVar(value="Status: Ready")
+        ttk.Label(
+            log_controls,
+            textvariable=self.event_count_var
+        ).pack(side="right", padx=6)
+        ttk.Label(
+            log_controls,
+            textvariable=self.event_status_var
+        ).pack(side="right", padx=6)
+
+        event_table = ttk.Frame(log_frame)
+        event_table.pack(fill="both", expand=True)
+        columns = (
+            "step", "time", "protocol", "event", "frame_ack", "status"
+        )
+        self.event_log = ttk.Treeview(
+            event_table,
+            columns=columns,
+            show="headings",
+            height=2,
+        )
+        headings = {
+            "step": ("Step", 52),
+            "time": ("Time (ms)", 76),
+            "protocol": ("Protocol", 118),
+            "event": ("Event", 360),
+            "frame_ack": ("Frame / ACK", 92),
+            "status": ("Status", 105),
+        }
+        for column, (heading, width) in headings.items():
+            self.event_log.heading(column, text=heading)
+            self.event_log.column(
+                column,
+                width=width,
+                minwidth=45,
+                anchor="w" if column in ("event", "protocol") else "center",
+                stretch=column == "event",
+            )
+
+        event_scrollbar = ttk.Scrollbar(
+            event_table,
             orient="vertical",
             command=self.event_log.yview
         )
-        scrollbar.pack(side="right", fill="y")
-
-        self.event_log.configure(
-            yscrollcommand=scrollbar.set
+        self.event_log.configure(yscrollcommand=event_scrollbar.set)
+        self.event_log.pack(side="left", fill="both", expand=True)
+        event_scrollbar.pack(side="right", fill="y")
+        self.event_log.tag_configure(
+            "data_success", background="#EFF6FF", foreground="#1D4ED8"
         )
-
-        # PERFORMANCE RESULTS
-        results_frame = ttk.LabelFrame(
-            main,
-            text="Performance Results",
-            padding=8
+        self.event_log.tag_configure(
+            "ack_success", background="#F0FDF4", foreground="#15803D"
         )
-        results_frame.pack(fill="x", pady=5)
-
-        self.results_label = ttk.Label(
-            results_frame,
-            text="Run a simulation to view results.",
-            justify="left"
+        self.event_log.tag_configure(
+            "packet_loss", background="#FEF2F2", foreground="#B91C1C"
         )
-        self.results_label.pack(anchor="w")
+        self.event_log.tag_configure(
+            "ack_loss", background="#FEF2F2", foreground="#B91C1C"
+        )
+        self.event_log.tag_configure(
+            "retransmission", background="#FFF7ED", foreground="#C2410C"
+        )
+        self.event_log.tag_configure(
+            "timeout", background="#FFF7ED", foreground="#C2410C"
+        )
+        self.event_log.tag_configure(
+            "discarded", background="#F1F5F9", foreground="#475569"
+        )
+        self.event_log.tag_configure(
+            "received", background="#F0FDF4", foreground="#166534"
+        )
+        self.event_log.tag_configure(
+            "current", font=("Segoe UI", 9, "bold")
+        )
+        self.current_log_item = None
 
     # ------------------------------------------------
     # STATUS BAR
@@ -331,6 +478,34 @@ class MainWindow:
             pady=6
         )
         self.status_label.pack(fill="x")
+
+    # ------------------------------------------------
+    # SCENARIO HANDLING
+    # ------------------------------------------------
+
+    def _on_scenario_change(self, *args):
+        scenario_name = self.scenario_var.get()
+        if scenario_name in self.SCENARIOS:
+            self.apply_scenario(scenario_name)
+
+    def apply_scenario(self, scenario_name):
+        if scenario_name not in self.SCENARIOS:
+            return
+
+        self.current_scenario_name = scenario_name
+        params = self.SCENARIOS[scenario_name]
+
+        self.frames_var.set(str(params["frames"]))
+        self.window_var.set(str(params["window"]))
+        self.transmission_var.set(str(params["transmission"]))
+        self.ack_var.set(str(params["ack"]))
+        self.packet_loss_var.set(str(params["packet_loss"]))
+        self.ack_loss_var.set(str(params["ack_loss"]))
+        self.timeout_var.set(str(params["timeout"]))
+
+    def get_seed_for_current_scenario(self):
+        scenario_name = self.scenario_var.get()
+        return self.SCENARIOS.get(scenario_name, {}).get("seed", 1)
 
     # ------------------------------------------------
     # READ AND VALIDATE INPUTS
@@ -384,14 +559,107 @@ class MainWindow:
     # ------------------------------------------------
 
     def display_events(self, events):
-        self.event_log.config(state="normal")
-        self.event_log.delete("1.0", tk.END)
-
+        self._clear_event_log()
         for event in events:
-            self.event_log.insert(tk.END, event + "\n")
+            self.event_log.insert(
+                "", "end",
+                values=("", "", "", event.strip(), "", "")
+            )
+        self.event_count_var.set(f"Events: {len(self.event_log.get_children())}")
+        children = self.event_log.get_children()
+        if children:
+            self.event_log.see(children[-1])
 
-        self.event_log.config(state="disabled")
-        self.event_log.see(tk.END)
+    def _clear_event_log(self):
+        self.event_log.delete(*self.event_log.get_children())
+        self.current_log_item = None
+        self.event_count_var.set("Events: 0")
+
+    def _append_simulation_event(self, record):
+        if self.current_log_item:
+            tags = tuple(
+                tag for tag in self.event_log.item(
+                    self.current_log_item, "tags"
+                ) if tag != "current"
+            )
+            self.event_log.item(self.current_log_item, tags=tags)
+
+        kind = record["kind"]
+        if kind == "data_tx":
+            if not record["transmission_succeeded"]:
+                row_tag = "packet_loss"
+            else:
+                row_tag = (
+                    "retransmission" if record["attempt"] > 1
+                    else "data_success"
+                )
+        elif kind == "data_lost":
+            row_tag = "packet_loss"
+        elif kind in ("ack_generated", "ack_received"):
+            row_tag = (
+                "ack_success" if record["transmission_succeeded"] is not False
+                else "ack_loss"
+            )
+        elif kind == "ack_lost":
+            row_tag = "ack_loss"
+        elif kind == "timeout":
+            row_tag = "timeout"
+        elif kind == "retransmit":
+            row_tag = "retransmission"
+        elif kind in ("duplicate", "discard"):
+            row_tag = "discarded"
+        elif kind in ("received", "delivered", "buffered"):
+            row_tag = "received"
+        else:
+            row_tag = ""
+
+        tags = (row_tag, "current") if row_tag else ("current",)
+        self.current_log_item = self.event_log.insert(
+            "", "end",
+            values=(
+                record["step"],
+                f"{record['time_ms']:.1f}",
+                record["protocol"],
+                record["event"],
+                record["frame_ack"],
+                record["status"],
+            ),
+            tags=tags,
+        )
+        self.event_count_var.set(
+            f"Events: {len(self.event_log.get_children())}"
+        )
+        self.event_log.see(self.current_log_item)
+        self.event_status_var.set(
+            f"Status: Running — {record['status']}"
+        )
+
+    def _pause_simulation(self):
+        self.animation_panel.pause()
+        self.event_status_var.set("Status: Paused")
+        self.pause_button.configure(state="disabled")
+        self.resume_button.configure(state="normal")
+
+    def _resume_simulation(self):
+        self.animation_panel.resume()
+        self.event_status_var.set("Status: Running")
+        self.pause_button.configure(state="normal")
+        self.resume_button.configure(state="disabled")
+
+    def _step_simulation(self):
+        self.animation_panel.step_forward()
+        self.event_status_var.set("Status: Stepping")
+        self.pause_button.configure(state="disabled")
+        self.resume_button.configure(state="normal")
+
+    def _simulation_state_changed(self, state):
+        self.event_status_var.set(f"Status: {state}")
+        if state == "Paused":
+            self.pause_button.configure(state="disabled")
+            self.resume_button.configure(state="normal")
+        elif state == "Running":
+            self.pause_button.configure(state="normal")
+            self.resume_button.configure(state="disabled")
 
     # ------------------------------------------------
     # START SINGLE PROTOCOL SIMULATION
@@ -400,10 +668,11 @@ class MainWindow:
     def start_simulation(self):
         try:
             inputs = self.get_simulation_inputs()
-
             protocol = inputs["protocol"]
 
             self.animation_panel.reset()
+            self._clear_event_log()
+            self.event_status_var.set("Status: Preparing simulation")
 
             self.status_label.config(
                 text=f"Status: Running {protocol}..."
@@ -419,40 +688,41 @@ class MainWindow:
                 ack_delay=inputs["ack"],
                 packet_loss=inputs["packet_loss"],
                 ack_loss=inputs["ack_loss"],
-                timeout=inputs["timeout"]
+                timeout=inputs["timeout"],
+                seed=self.get_seed_for_current_scenario()
             )
 
-            # Display event log
-            self.display_events(results["events"])
-
-            # Start animation
-            self.animation_panel.play(results["events"])
-
-            # Display performance
-            output = (
-                f"Protocol: {protocol}\n"
-                f"Total Frames Transmitted: "
-                f"{results['total_frames_transmitted']}\n"
-                f"Retransmissions: {results['retransmissions']}\n"
-                f"Packets Lost: {results['packets_lost']}\n"
-                f"ACKs Received: {results['acks_received']}\n"
-                f"Total Transmission Time: "
-                f"{results['total_time_ms']} ms\n"
-                f"Throughput: {results['throughput_fps']} frames/sec\n"
-                f"Efficiency: {results['efficiency_percent']}%"
-            )
-
-            self.results_label.config(text=output)
-
-            self.status_label.config(
-                text=f"Status: {protocol} simulation completed"
+            self.pause_button.configure(state="normal")
+            self.resume_button.configure(state="disabled")
+            self.step_button.configure(state="normal")
+            self.event_status_var.set("Status: Running")
+            self.animation_panel.play(
+                results["events"],
+                protocol,
+                inputs,
+                on_event=self._append_simulation_event,
+                on_complete=lambda: self._simulation_completed(protocol),
+                on_state=self._simulation_state_changed,
             )
 
         except (ValueError, TypeError) as error:
             messagebox.showerror("Invalid Input", str(error))
 
         except Exception as error:
+            self.event_status_var.set("Status: Failed")
+            self.pause_button.configure(state="disabled")
+            self.resume_button.configure(state="disabled")
+            self.step_button.configure(state="disabled")
             messagebox.showerror("Simulation Error", str(error))
+
+    def _simulation_completed(self, protocol):
+        self.event_status_var.set("Status: Completed")
+        self.status_label.config(
+            text=f"Status: {protocol} simulation completed"
+        )
+        self.pause_button.configure(state="disabled")
+        self.resume_button.configure(state="disabled")
+        self.step_button.configure(state="disabled")
 
     # ------------------------------------------------
     # COMPARE ALL THREE PROTOCOLS
@@ -461,13 +731,7 @@ class MainWindow:
     def compare_protocols(self):
         try:
             inputs = self.get_simulation_inputs()
-
-            protocol_names = [
-                "One-Bit Sliding Window",
-                "Go-Back-N",
-                "Selective Repeat"
-            ]
-
+            protocol_names = self.PROTOCOL_ORDER
             comparison_results = {}
 
             self.status_label.config(
@@ -485,12 +749,25 @@ class MainWindow:
                     ack_delay=inputs["ack"],
                     packet_loss=inputs["packet_loss"],
                     ack_loss=inputs["ack_loss"],
-                    timeout=inputs["timeout"]
+                    timeout=inputs["timeout"],
+                    seed=self.get_seed_for_current_scenario()
                 )
-
                 comparison_results[protocol] = results
 
-            # Create comparison window if it does not exist
+            self.current_comparison_results = comparison_results
+            self.current_comparison_parameters = {
+                key: inputs[key]
+                for key in (
+                    "frames",
+                    "window",
+                    "transmission",
+                    "ack",
+                    "packet_loss",
+                    "ack_loss",
+                    "timeout",
+                )
+            }
+
             if (
                 self.comparison_window is None
                 or not self.comparison_window.winfo_exists()
@@ -512,10 +789,17 @@ class MainWindow:
                     pady=10
                 )
 
-            # Update graph with latest results
             self.comparison_panel.update_graph(comparison_results)
-
             self.comparison_window.lift()
+
+            if (
+                self.results_panel is not None
+                and self.results_panel.winfo_exists()
+            ):
+                self.results_panel.update_results(
+                    self.current_comparison_results,
+                    self.current_comparison_parameters,
+                )
 
             self.status_label.config(
                 text="Status: Protocol comparison completed"
@@ -527,6 +811,24 @@ class MainWindow:
         except Exception as error:
             messagebox.showerror("Comparison Error", str(error))
 
+    def view_performance_results(self):
+        if (
+            self.results_panel is None
+            or not self.results_panel.winfo_exists()
+        ):
+            self.results_panel = ResultsPanel(self.root)
+
+        if self.current_comparison_results:
+            self.results_panel.update_results(
+                self.current_comparison_results,
+                self.current_comparison_parameters,
+            )
+        else:
+            self.results_panel.clear()
+
+        self.results_panel.deiconify()
+        self.results_panel.lift()
+
     # ------------------------------------------------
     # RESET
     # ------------------------------------------------
@@ -534,13 +836,21 @@ class MainWindow:
     def reset_simulation(self):
         self.animation_panel.reset()
 
-        self.event_log.config(state="normal")
-        self.event_log.delete("1.0", tk.END)
-        self.event_log.config(state="disabled")
+        self._clear_event_log()
+        self.event_status_var.set("Status: Ready")
+        self.pause_button.configure(state="disabled")
+        self.resume_button.configure(state="disabled")
+        self.step_button.configure(state="disabled")
 
-        self.results_label.config(
-            text="Run a simulation to view results."
-        )
+        self.current_comparison_results = {}
+        self.current_comparison_parameters = {}
+
+        if (
+            self.results_panel is not None
+            and self.results_panel.winfo_exists()
+        ):
+            self.results_panel.clear()
+            self.results_panel.withdraw()
 
         if (
             self.comparison_window is not None

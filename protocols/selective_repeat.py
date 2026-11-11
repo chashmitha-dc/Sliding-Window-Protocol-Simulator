@@ -53,6 +53,7 @@ class SelectiveRepeatProtocol:
         packets_lost = 0
         acks_received = 0
         total_time = 0
+        delivered_frames = 0
 
         # -------------------------------
         # SENDER AND RECEIVER STATE
@@ -129,6 +130,7 @@ class SelectiveRepeatProtocol:
                 if not receiver_received[frame]:
 
                     receiver_received[frame] = True
+                    delivered_frames += 1
 
                     events.append(
                         f"Receiver: Frame {frame} received and buffered"
@@ -226,6 +228,7 @@ class SelectiveRepeatProtocol:
             "retransmissions": retransmissions,
             "packets_lost": packets_lost,
             "acks_received": acks_received,
+            "delivered_frames": delivered_frames,
             "total_time_ms": total_time,
             "events": events
         }

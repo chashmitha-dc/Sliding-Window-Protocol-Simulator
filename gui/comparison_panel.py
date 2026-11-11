@@ -19,8 +19,9 @@ class ComparisonPanel(ttk.Frame):
             font=("Arial", 14, "bold")
         ).pack(pady=10)
 
-        self.figure = Figure(figsize=(9, 4), dpi=100)
-        self.ax = self.figure.add_subplot(111)
+        self.figure = Figure(figsize=(9, 6), dpi=100)
+        self.throughput_ax = self.figure.add_subplot(211)
+        self.efficiency_ax = self.figure.add_subplot(212)
 
         self.canvas = FigureCanvasTkAgg(
             self.figure,
@@ -37,24 +38,26 @@ class ComparisonPanel(ttk.Frame):
         self.show_empty_graph()
 
     def show_empty_graph(self):
-        self.ax.clear()
-        self.ax.set_title("Run simulations to compare protocols")
-        self.ax.set_ylabel("Performance")
-        self.ax.set_xlabel("Protocols")
+        self.throughput_ax.clear()
+        self.efficiency_ax.clear()
+
+        self.throughput_ax.set_title("Throughput Comparison")
+        self.throughput_ax.set_ylabel("Frames/sec")
+        self.throughput_ax.set_xlabel("Protocols")
+        self.throughput_ax.grid(True, linestyle="--", alpha=0.4)
+
+        self.efficiency_ax.set_title("Efficiency Comparison")
+        self.efficiency_ax.set_ylabel("Efficiency (%)")
+        self.efficiency_ax.set_xlabel("Protocols")
+        self.efficiency_ax.grid(True, linestyle="--", alpha=0.4)
+
+        self.figure.tight_layout()
         self.canvas.draw()
 
     def update_graph(self, results):
-        """
-        results format:
-        {
-            "Stop-and-Wait": {"throughput_fps": 5, ...},
-            "Go-Back-N": {"throughput_fps": 10, ...},
-            "Selective Repeat": {"throughput_fps": 12, ...}
-        }
-        """
+        """Display two separate subplots for throughput and efficiency."""
 
         self.results = results
-
         protocols = list(results.keys())
 
         if not protocols:
@@ -62,41 +65,67 @@ class ComparisonPanel(ttk.Frame):
             return
 
         throughputs = [
-            results[name]["throughput_fps"]
+            float(results[name].get("throughput_fps", 0.0))
             for name in protocols
         ]
 
         efficiencies = [
-            results[name]["efficiency_percent"]
+            float(results[name].get("efficiency_percent", 0.0))
             for name in protocols
         ]
 
-        self.ax.clear()
-
         x = list(range(len(protocols)))
-        width = 0.35
+        width = 0.6
 
-        self.ax.bar(
-            [i - width / 2 for i in x],
+        self.throughput_ax.clear()
+        bars = self.throughput_ax.bar(
+            x,
             throughputs,
-            width,
-            label="Throughput (frames/sec)"
+            width=width,
+            color=["#4F46E5", "#10B981", "#F59E0B"]
         )
+        self.throughput_ax.set_title("Throughput Comparison")
+        self.throughput_ax.set_ylabel("Frames/sec")
+        self.throughput_ax.set_xlabel("Protocols")
+        self.throughput_ax.set_xticks(x)
+        self.throughput_ax.set_xticklabels(protocols, rotation=0)
+        self.throughput_ax.grid(True, axis="y", linestyle="--", alpha=0.4)
 
-        self.ax.bar(
-            [i + width / 2 for i in x],
+        for bar, value in zip(bars, throughputs):
+            height = bar.get_height()
+            self.throughput_ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                height + max(throughputs) * 0.02,
+                f"{value:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=8
+            )
+
+        self.efficiency_ax.clear()
+        bars = self.efficiency_ax.bar(
+            x,
             efficiencies,
-            width,
-            label="Efficiency (%)"
+            width=width,
+            color=["#4F46E5", "#10B981", "#F59E0B"]
         )
+        self.efficiency_ax.set_title("Efficiency Comparison")
+        self.efficiency_ax.set_ylabel("Efficiency (%)")
+        self.efficiency_ax.set_xlabel("Protocols")
+        self.efficiency_ax.set_xticks(x)
+        self.efficiency_ax.set_xticklabels(protocols, rotation=0)
+        self.efficiency_ax.grid(True, axis="y", linestyle="--", alpha=0.4)
 
-        self.ax.set_title("Protocol Performance Comparison")
-        self.ax.set_xlabel("Protocols")
-        self.ax.set_ylabel("Performance Value")
-        self.ax.set_xticks(x)
-        self.ax.set_xticklabels(protocols)
-        self.ax.legend()
-        self.ax.grid(axis="y", linestyle="--", alpha=0.4)
+        for bar, value in zip(bars, efficiencies):
+            height = bar.get_height()
+            self.efficiency_ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                height + 2,
+                f"{value:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=8
+            )
 
         self.figure.tight_layout()
         self.canvas.draw()
